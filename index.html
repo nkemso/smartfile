@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SmartFile</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;500&family=Outfit:wght@400;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#0ea5e9',
+                        accent: '#10b981',
+                        darkBg: '#020617',
+                        surface: '#0f172a',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['Outfit', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #020617;
+            background-image: radial-gradient(at 0% 0%, rgba(14,165,233,0.15) 0px, transparent 50%), radial-gradient(at 100% 100%, rgba(16,185,129,0.1) 0px, transparent 50%);
+            background-attachment: fixed;
+            color: #f8fafc;
+        }
+        .glass {
+            background: rgba(15,23,42,0.6);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+    </style>
+</head>
+<body class="min-h-screen font-sans antialiased p-4 md:p-8">
+
+    <div id="app" class="max-w-7xl mx-auto"></div>
+    <div class="fixed inset-0 pointer-events-none -z-10 overflow-hidden" id="particles"></div>
+
+    <script>
+        // ============================================
+        // 🔧 ONLY THESE 2 VALUES NEED YOUR ATTENTION
+        // ============================================
+        const ADMIN_PASSWORD = Wesley431@;          // change this
+        const UPGRADE_URL = https://whop.com/checkout/plan_bYQ4YeQgmk1sm; // link to upgrade
+
+        // ============================================
+        // APP LOGIC - NO PUBLIC KEY NEEDED
+        // ============================================
+        (function() {
+            // ---------- 1. Get user from Whop context ----------
+            let user = null;
+            function getUserFromWhop() {
+                // Whop injects the user into window.WhopApp when running inside the app experience
+                if (window.WhopApp && window.WhopApp.user) {
+                    user = window.WhopApp.user;
+                    return true;
+                }
+                // Fallback: if running locally or outside Whop, show a message
+                return false;
+            }
+
+            if (!getUserFromWhop()) {
+                document.getElementById('app').innerHTML = `
+                    <div class="flex flex-col items-center justify-center min-h-[80vh] text-center">
+                        <h1 class="text-4xl font-display font-bold mb-4">SmartFile</h1>
+                        <p class="text-slate-400 mb-6">Please open this app inside your Whop membership.</p>
+                    </div>`;
+                return;
+            }
+
+            const userId = user.id;
+            const userEmail = user.email;
+            const userTier = user.plan?.tier || 'free'; // tier name from Whop
+
+            // ---------- 2. Courses data ----------
+            let coursesData = [];
+            const COURSES_JSON_URL = 'courses.json';
+
+            async function loadCourses() {
+                try {
+                    const res = await fetch(COURSES_JSON_URL);
+                    coursesData = await res.json();
+                } catch (e) {
+                    alert('Could not load courses.json. Make sure it is uploaded.');
+                }
+            }
+
+            // ---------- 3. Progress (localStorage) ----------
+            const storageKey = `smartfile_${userId}`;
+            function getProgress() {
+                const raw = localStorage.getItem(storageKey);
+                return raw ? JSON.parse(raw) : { completedUnits: {}, onboarded: false };
+            }
+            function saveProgress(prog) {
+                localStorage.setItem(storageKey, JSON.stringify(prog));
+            }
+            let prog = getProgress();
+
+            function isUnitLocked(unit, course) {
+                if (unit.position === 1) return false;
+                const prevUnit = course.units.find(u => u.position === unit.position - 1);
+                if (!prevUnit) return false;
+                if (!prog.completedUnits[prevUnit.id]) return true;
+                const completedTime = prog.completedUnits[prevUnit.id];
+                if (prevUnit.timeDelayDays > 0) {
+                    const unlockTime = completedTime + (prevUnit.timeDelayDays * 86400000);
+                    if (Date.now() < unlockTime) return true;
+                }
+                return false;
+            }
+
+            // ---------- 4. Render functions ----------
+            function renderOnboarding() {
+                document.getElementById('app').innerHTML = `
+                    <div class="glass rounded-2xl p-8 max-w-lg mx-auto text-center">
+                        <h2 class="text-3xl font-display font-bold mb-4">Set Up Your SmartFile Library</h2>
+                        <p class="text-slate-400 mb-6">What brings you here?</p>
+                        <button class="goal-btn bg-white/5 hover:bg-primary/20 p-4 rounded-xl text-left w-full mb-2" data-goal="improve-eyesight">Improve Eyesight</button>
+                        <button class="goal-btn bg-white/5 hover:bg-primary/20 p-4 rounded-xl text-left w-full mb-2" data-goal="reduce-strain">Reduce Screen Strain</button>
+                        <button class="goal-btn bg-white/5 hover:bg-primary/20 p-4 rounded-xl text-left w-full mb-4" data-goal="general-wellness">General Wellness</button>
+                        <button id="skip-onboarding" class="text-slate-500 text-sm hover:text-white">Skip</button>
+                        <div id="processing" class="hidden mt-6 animate-pulse">
+                            <div class="bg-slate-900 p-4 rounded-lg text-left text-xs font-mono space-y-2">
+                                <div class="flex items-center gap-2"><div class="w-2 h-2 rounded-full bg-accent animate-pulse"></div> Personalizing...</div>
+                                <div class="w-full bg-slate-800 h-1 rounded-full"><div class="bg-primary h-1 rounded-full" style="width:100%"></div></div>
+                                <p class="text-accent text-[10px]">Library ready!</p>
+                            </div>
+                        </div>
+                    </div>`;
+                document.querySelectorAll('.goal-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        prog.onboarded = true;
+                        saveProgress(prog);
+                        document.getElementById('processing').classList.remove('hidden');
+                        setTimeout(() => renderLibrary(), 1500);
+                    });
+                });
+                document.getElementById('skip-onboarding').addEventListener('click', () => {
+                    prog.onboarded = true;
+                    saveProgress(prog);
+                    renderLibrary();
+                });
+            }
+
+            async function renderLibrary() {
+                await loadCourses();
+                let html = `
+                    <header class="mb-10 flex flex-col md:flex-row items-center justify-between">
+                        <div>
+                            <h1 class="text-3xl md:text-4xl font-display font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">SmartFile</h1>
+                            <p class="text-slate-400 text-sm">Welcome, ${userEmail || 'Member'}</p>
+                        </div>
+                        <div class="flex gap-4 mt-4 md:mt-0">
+                            <span class="text-xs bg-primary/20 text-primary px-3 py-1 rounded-full font-mono">${userTier.toUpperCase()}</span>
+                        </div>
+                    </header>
+                    <h2 class="text-2xl font-display font-bold mb-6">Your Courses</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">`;
+
+                coursesData.forEach(course => {
+                    const lockedByTier = (course.tier === 'premium' && userTier !== 'premium');
+                    const completed = course.units.filter(u => prog.completedUnits[u.id]).length;
+                    const total = course.units.length;
+                    const percent = total ? Math.round((completed/total)*100) : 0;
+                    html += `
+                        <div class="glass rounded-2xl p-5 hover:border-primary/50 transition group ${lockedByTier ? 'opacity-70' : ''}">
+                            <div class="flex justify-between items-center mb-3">
+                                <span class="text-xs font-bold text-primary uppercase tracking-widest">${course.tier}</span>
+                                ${lockedByTier ? '<span class="text-[10px] text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-full">🔒 Premium</span>' : ''}
+                            </div>
+                            <h3 class="text-lg font-semibold mb-2">${course.title}</h3>
+                            <p class="text-xs text-slate-400 mb-3">${total} units</p>
+                            <div class="w-full bg-slate-800 rounded-full h-1.5 mb-3">
+                                <div class="bg-primary h-1.5 rounded-full" style="width:${percent}%"></div>
+                            </div>
+                            <div class="flex justify-between items-center text-[10px] text-slate-500">
+                                <span>${completed}/${total} complete</span>
+                                ${lockedByTier ? 
+                                    `<a href="${UPGRADE_URL}" target="_blank" class="text-amber-400 hover:underline font-bold">Upgrade →</a>` :
+                                    `<button onclick="openCourse('${course.id}')" class="text-primary hover:underline font-bold">Resume →</button>`
+                                }
+                            </div>
+                        </div>`;
+                });
+                html += `</div>`;
+                if (window.location.search.includes('admin')) {
+                    html += `<div class="mt-8 text-center"><button onclick="showAdminPanel()" class="bg-white/5 hover:bg-white/10 text-slate-400 px-4 py-2 rounded-lg text-xs">Admin Panel</button></div>`;
+                }
+                document.getElementById('app').innerHTML = html;
+
+                window.openCourse = (courseId) => {
+                    const course = coursesData.find(c => c.id === courseId);
+                    if (!course) return;
+                    renderCourse(course);
+                };
+            }
+
+            function renderCourse(course) {
+                let html = `
+                    <button onclick="renderLibrary()" class="text-primary text-sm mb-4 flex items-center gap-1 hover:underline">← Back</button>
+                    <h2 class="text-2xl font-display font-bold mb-6">${course.title}</h2>
+                    <div class="space-y-4">`;
+                course.units.sort((a,b) => a.position - b.position).forEach(unit => {
+                    const completed = !!prog.completedUnits[unit.id];
+                    const locked = isUnitLocked(unit, course);
+                    html += `
+                        <div class="glass rounded-xl p-4 flex items-center justify-between ${locked ? 'opacity-60' : ''}">
+                            <div class="flex items-center gap-4">
+                                <div class="text-2xl">${completed ? '✅' : locked ? '🔒' : '📖'}</div>
+                                <div>
+                                    <h4 class="text-sm font-semibold ${locked ? 'text-slate-500' : 'text-white'}">${unit.title}</h4>
+                                    <p class="text-[10px] text-slate-500">
+                                        ${completed ? 'Completed' : locked ? 'Locked' : 'Ready'}
+                                        ${unit.timeDelayDays > 0 && !completed && !locked ? ` (wait ${unit.timeDelayDays}d)` : ''}
+                                    </p>
+                                </div>
+                            </div>
+                            ${!locked && !completed ? `
+                                <div class="flex gap-2">
+                                    <button onclick="markDone('${unit.id}', '${course.id}')" class="bg-accent/20 hover:bg-accent/40 text-accent px-3 py-1 rounded-lg text-xs font-bold">Mark Complete</button>
+                                    <button onclick="viewUnit('${unit.id}', '${course.id}')" class="bg-white/5 hover:bg-white/10 text-slate-400 px-3 py-1 rounded-lg text-xs">View</button>
+                                </div>
+                            ` : completed ? `
+                                <button onclick="viewUnit('${unit.id}', '${course.id}')" class="text-primary hover:underline text-xs">Review</button>
+                            ` : ''}
+                        </div>`;
+                });
+                html += `</div>`;
+                document.getElementById('app').innerHTML = html;
+
+                window.markDone = (unitId, courseId) => {
+                    prog.completedUnits[unitId] = Date.now();
+                    saveProgress(prog);
+                    const course = coursesData.find(c => c.id === courseId);
+                    renderCourse(course);
+                };
+
+                window.viewUnit = (unitId, courseId) => {
+                    const course = coursesData.find(c => c.id === courseId);
+                    const unit = course.units.find(u => u.id === unitId);
+                    if (!unit) return;
+                    if (isUnitLocked(unit, course) && !prog.completedUnits[unitId]) {
+                        alert('Unit locked');
+                        return;
+                    }
+                    renderUnit(unit, course);
+                };
+            }
+
+            function renderUnit(unit, course) {
+                const completed = !!prog.completedUnits[unit.id];
+                let fileEmbed = '<p class="text-slate-400">No file attached.</p>';
+                if (unit.fileUrl) {
+                    if (unit.fileType === 'video') {
+                        fileEmbed = `<video controls class="w-full rounded-lg"><source src="${unit.fileUrl}" type="video/mp4"></video>`;
+                    } else if (unit.fileType === 'audio') {
+                        fileEmbed = `<audio controls class="w-full"><source src="${unit.fileUrl}" type="audio/mpeg"></audio>`;
+                    } else if (unit.fileType === 'pdf') {
+                        fileEmbed = `<iframe src="${unit.fileUrl}" class="w-full h-[70vh] rounded-lg border border-white/10"></iframe>`;
+                    } else {
+                        fileEmbed = `<a href="${unit.fileUrl}" target="_blank" class="text-primary underline">Open file</a>`;
+                    }
+                }
+                document.getElementById('app').innerHTML = `
+                    <button onclick="renderCourse('${course.id}')" class="text-primary text-sm mb-4 flex items-center gap-1 hover:underline">← Back</button>
+                    <div class="glass rounded-2xl p-6 max-w-4xl mx-auto">
+                        <h3 class="text-xl font-bold mb-4">${unit.title}</h3>
+                        ${fileEmbed}
+                        <div class="mt-6">
+                            ${completed ? 
+                                '<span class="text-accent text-sm">✅ Completed</span>' :
+                                `<button onclick="markDone('${unit.id}', '${course.id}')" class="bg-accent/20 hover:bg-accent/40 text-accent px-4 py-2 rounded-lg text-sm font-bold">Mark Complete</button>`
+                            }
+                        </div>
+                    </div>`;
+            }
+
+            // Admin panel (unchanged from previous version)
+            window.showAdminPanel = function() {
+                const pw = prompt('Admin password:');
+                if (pw !== ADMIN_PASSWORD) return alert('Wrong password');
+                let html = `
+                <div class="glass rounded-2xl p-6 max-w-4xl mx-auto">
+                    <h2 class="text-2xl font-display font-bold mb-6">Admin Panel</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div>
+                            <h3 class="font-semibold mb-3">Add Course</h3>
+                            <input id="new-course-title" placeholder="Title" class="w-full bg-slate-800 p-3 rounded-lg mb-2 text-white">
+                            <select id="new-course-tier" class="w-full bg-slate-800 p-3 rounded-lg mb-2 text-white">
+                                <option value="free">Free</option>
+                                <option value="premium">Premium</option>
+                            </select>
+                            <button onclick="addCourse()" class="bg-primary px-4 py-2 rounded-lg text-sm font-bold">Add Course</button>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold mb-3">Add Unit</h3>
+                            <select id="unit-course-select" class="w-full bg-slate-800 p-3 rounded-lg mb-2 text-white"></select>
+                            <input id="unit-title" placeholder="Unit title" class="w-full bg-slate-800 p-3 rounded-lg mb-2 text-white">
+                            <input id="unit-delay" type="number" placeholder="Time delay (days)" value="0" class="w-full bg-slate-800 p-3 rounded-lg mb-2 text-white">
+                            <input id="unit-file-url" placeholder="File URL (from Whop Files)" class="w-full bg-slate-800 p-3 rounded-lg mb-2 text-white">
+                            <select id="unit-file-type" class="w-full bg-slate-800 p-3 rounded-lg mb-2 text-white">
+                                <option value="none">None</option>
+                                <option value="video">Video</option>
+                                <option value="audio">Audio</option>
+                                <option value="pdf">PDF</option>
+                            </select>
+                            <button onclick="addUnit()" class="bg-accent px-4 py-2 rounded-lg text-sm font-bold">Add Unit</button>
+                        </div>
+                    </div>
+                    <button onclick="renderLibrary()" class="mt-8 text-primary underline">Back to Library</button>
+                </div>`;
+                document.getElementById('app').innerHTML = html;
+                const sel = document.getElementById('unit-course-select');
+                coursesData.forEach(c => { const opt = document.createElement('option'); opt.value=c.id; opt.textContent=c.title; sel.appendChild(opt); });
+                window.addCourse = () => {
+                    const title = document.getElementById('new-course-title').value;
+                    const tier = document.getElementById('new-course-tier').value;
+                    if (!title) return;
+                    coursesData.push({ id: Date.now().toString(), title, tier, units: [] });
+                    localStorage.setItem('smf_courses_backup', JSON.stringify(coursesData));
+                    alert('Course added. Copy JSON from console and update courses.json.');
+                    console.log('Updated courses JSON:', JSON.stringify(coursesData, null, 2));
+                    renderLibrary();
+                };
+                window.addUnit = () => {
+                    const courseId = document.getElementById('unit-course-select').value;
+                    const course = cour
