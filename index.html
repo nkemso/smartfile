@@ -333,4 +333,47 @@
                 };
                 window.addUnit = () => {
                     const courseId = document.getElementById('unit-course-select').value;
-                    const course = cour
+                    const course = coursesData.find(c => c.id === courseId);
+                    if (!course) return;
+                    const title = document.getElementById('unit-title').value;
+                    const delay = parseInt(document.getElementById('unit-delay').value) || 0;
+                    const fileUrl = document.getElementById('unit-file-url').value;
+                    const fileType = document.getElementById('unit-file-type').value;
+                    course.units.push({
+                        id: Date.now().toString(),
+                        title,
+                        position: course.units.length + 1,
+                        timeDelayDays: delay,
+                        fileUrl: fileUrl || null,
+                        fileType: fileType !== 'none' ? fileType : null
+                    });
+                    localStorage.setItem('smf_courses_backup', JSON.stringify(coursesData));
+                    alert('Unit added. Copy JSON from console and update courses.json.');
+                    console.log('Updated courses JSON:', JSON.stringify(coursesData, null, 2));
+                    renderLibrary();
+                };
+            };
+
+            // ========== INIT ==========
+            if (!prog.onboarded) {
+                renderOnboarding();
+            } else {
+                renderLibrary();
+            }
+
+            // particles (same as before)
+            const container = document.getElementById('particles');
+            for (let i = 0; i < 20; i++) {
+                const p = document.createElement('div');
+                p.className = 'absolute bg-primary/20 rounded-full blur-xl animate-pulse-slow';
+                const s = Math.random() * 200 + 100;
+                p.style.width = s + 'px'; p.style.height = s + 'px';
+                p.style.top = Math.random()*100 + '%'; p.style.left = Math.random()*100 + '%';
+                p.style.animationDelay = Math.random()*5 + 's';
+                p.style.animationDuration = (Math.random()*10 + 5) + 's';
+                container.appendChild(p);
+            }
+        })();
+    </script>
+</body>
+</html>
