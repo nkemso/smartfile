@@ -1,0 +1,64 @@
+[
+  {
+    "id": "course_1",
+    "title": "Getting Started",
+    "tier": "free",
+    "units": [
+      {
+        "id": "unit_1_1",
+        "title": "Welcome to SmartFile",
+        "position": 1,
+        "timeDelayDays": 0,
+        "fileUrl": null,
+        "fileType": null
+      },
+      {
+        "id": "unit_1_2",
+        "title": "How to Use This Course",
+        "position": 2,
+        "timeDelayDays": 1,
+        "fileUrl": null,
+        "fileType": null
+      },
+      {
+        "id": "unit_1_3",
+        "title": "Course Resources",
+        "position": 3,
+        "timeDelayDays": 2,
+        "fileUrl": null,
+        "fileType": null
+      }
+    ]
+  },
+  {
+    "id": "course_2",
+    "title": "Advanced Topics",
+    "tier": "premium",
+    "units": [
+      {
+        "id": "unit_2_1",
+        "title": "Module 1: Fundamentals",
+        "position": 1,
+        "timeDelayDays": 0,
+        "fileUrl": null,
+        "fileType": null
+      },
+      {
+        "id": "unit_2_2",
+        "title": "Module 2: Intermediate Concepts",
+        "position": 2,
+        "timeDelayDays": 3,
+        "fileUrl": null,
+        "fileType": null
+      },
+      {
+        "id": "unit_2_3",
+        "title": "Module 3: Expert Level",
+        "position": 3,
+        "timeDelayDays": 7,
+        "fileUrl": null,
+        "fileType": null
+      }
+    ]
+  }
+]
