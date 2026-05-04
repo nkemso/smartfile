@@ -49,8 +49,8 @@
         // ============================================
         // 🔧 ONLY THESE 2 VALUES NEED YOUR ATTENTION
         // ============================================
-        const ADMIN_PASSWORD = Wesley431@;          // change this
-        const UPGRADE_URL = https://whop.com/checkout/plan_bYQ4YeQgmk1sm; // link to upgrade
+        const ADMIN_PASSWORD = "Wesley431@";
+        const UPGRADE_URL = "https://whop.com/checkout/plan_bYQ4YeQgmk1sm";
 
         // ============================================
         // APP LOGIC - NO PUBLIC KEY NEEDED
@@ -64,8 +64,13 @@
                     user = window.WhopApp.user;
                     return true;
                 }
-                // Fallback: if running locally or outside Whop, show a message
-                return false;
+                // Demo mode: Create a test user for local testing
+                user = {
+                    id: 'demo_user_123',
+                    email: 'demo@example.com',
+                    plan: { tier: 'free' }
+                };
+                return true;
             }
 
             if (!getUserFromWhop()) {
@@ -79,7 +84,7 @@
 
             const userId = user.id;
             const userEmail = user.email;
-            const userTier = user.plan?.tier || 'free'; // tier name from Whop
+            const userTier = user.plan?.tier || 'free';
 
             // ---------- 2. Courses data ----------
             let coursesData = [];
@@ -286,7 +291,7 @@
                     </div>`;
             }
 
-            // Admin panel (unchanged from previous version)
+            // Admin panel
             window.showAdminPanel = function() {
                 const pw = prompt('Admin password:');
                 if (pw !== ADMIN_PASSWORD) return alert('Wrong password');
@@ -363,7 +368,7 @@
                 renderLibrary();
             }
 
-            // particles (same as before)
+            // particles
             const container = document.getElementById('particles');
             for (let i = 0; i < 20; i++) {
                 const p = document.createElement('div');
