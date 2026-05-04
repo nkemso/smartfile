@@ -83,14 +83,16 @@
 
             // ---------- 2. Courses data ----------
             let coursesData = [];
-            const COURSES_JSON_URL = 'courses.json';
+            const COURSES_JSON_URL = '/courses.json';
 
             async function loadCourses() {
                 try {
                     const res = await fetch(COURSES_JSON_URL);
+                    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
                     coursesData = await res.json();
                 } catch (e) {
-                    alert('Could not load courses.json. Make sure it is uploaded.');
+                    console.error('Failed to load courses.json:', e);
+                    alert(`Could not load courses.json from ${COURSES_JSON_URL}. Status: ${e.message}`);
                 }
             }
 
