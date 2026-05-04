@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>SmartFile</title>
+    <title>SmartFile - Vision Course Platform</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;500&family=Outfit:wght@400;700&display=swap" rel="stylesheet">
     <script>
@@ -16,12 +16,16 @@
                         accent: '#10b981',
                         darkBg: '#020617',
                         surface: '#0f172a',
+                        warning: '#f59e0b',
                     },
                     fontFamily: {
                         sans: ['Inter', 'sans-serif'],
                         display: ['Outfit', 'sans-serif'],
                         mono: ['JetBrains Mono', 'monospace'],
                     },
+                    animation: {
+                        'pulse-slow': 'pulse 4s infinite',
+                    }
                 }
             }
         }
@@ -29,7 +33,8 @@
     <style>
         body {
             background-color: #020617;
-            background-image: radial-gradient(at 0% 0%, rgba(14,165,233,0.15) 0px, transparent 50%), radial-gradient(at 100% 100%, rgba(16,185,129,0.1) 0px, transparent 50%);
+            background-image: radial-gradient(at 0% 0%, rgba(14,165,233,0.15) 0px, transparent 50%),
+                            radial-gradient(at 100% 100%, rgba(16,185,129,0.1) 0px, transparent 50%);
             background-attachment: fixed;
             color: #f8fafc;
         }
@@ -37,6 +42,13 @@
             background: rgba(15,23,42,0.6);
             backdrop-filter: blur(12px);
             border: 1px solid rgba(255,255,255,0.1);
+        }
+        .premium-badge {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: white;
+        }
+        .lock-icon {
+            opacity: 0.7;
         }
     </style>
 </head>
@@ -47,33 +59,47 @@
 
     <script>
         // ============================================
-        // 🔧 ONLY THESE 2 VALUES NEED YOUR ATTENTION
+        // 🔧 CONFIGURATION (change these)
         // ============================================
-        const ADMIN_PASSWORD = "Wesley431@";
-        const UPGRADE_URL = "https://whop.com/checkout/plan_bYQ4YeQgmk1sm";
+        const CONFIG = {
+            adminPassword: 'smartfile123',
+            upgradeUrl: {
+                tier1: 'https://whop.com/checkout/plan_YOUR_TIER1_ID',
+                tier2: 'https://whop.com/checkout/plan_YOUR_TIER2_ID',
+                tier3: 'https://whop.com/checkout/plan_YOUR_TIER3_ID',
+            },
+            demoMode: true,  // set to false for production
+        };
 
         // ============================================
-        // APP LOGIC - NO PUBLIC KEY NEEDED
+        // APP ENGINE
         // ============================================
         (function() {
-            // ---------- 1. Get user from Whop context ----------
+            'use strict';
+
+            // ========== 1. USER INITIALIZATION ==========
             let user = null;
-            function getUserFromWhop() {
-                // Whop injects the user into window.WhopApp when running inside the app experience
+            let tierOrder = [];
+
+            function initUser() {
+                // Whop: window.WhopApp.user injected by Whop platform
                 if (window.WhopApp && window.WhopApp.user) {
                     user = window.WhopApp.user;
                     return true;
                 }
-                // Demo mode: Create a test user for local testing
-                user = {
-                    id: 'demo_user_123',
-                    email: 'demo@example.com',
-                    plan: { tier: 'free' }
-                };
-                return true;
+                // Demo mode
+                if (CONFIG.demoMode) {
+                    user = {
+                        id: 'demo_' + Date.now(),
+                        email: 'demo@example.com',
+                        plan: { tier: 'free' }
+                    };
+                    return true;
+                }
+                return false;
             }
 
-            if (!getUserFromWhop()) {
+            if (!initUser()) {
                 document.getElementById('app').innerHTML = `
                     <div class="flex flex-col items-center justify-center min-h-[80vh] text-center">
                         <h1 class="text-4xl font-display font-bold mb-4">SmartFile</h1>
@@ -86,63 +112,126 @@
             const userEmail = user.email;
             const userTier = user.plan?.tier || 'free';
 
-            // ---------- 2. Courses data ----------
-            let coursesData = [];
+            // ========== 2. COURSES & TIER DATA ==========
+            let coursesData = null;
             const COURSES_JSON_URL = '/courses.json';
 
             async function loadCourses() {
                 try {
                     const res = await fetch(COURSES_JSON_URL);
-                    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
                     coursesData = await res.json();
+                    tierOrder = coursesData.tierOrder || ['free', 'tier1', 'tier2', 'tier3'];
+                    console.log('✓ Courses loaded:', coursesData.courses.length, 'courses');
                 } catch (e) {
-                    console.error('Failed to load courses.json:', e);
-                    alert(`Could not load courses.json from ${COURSES_JSON_URL}. Status: ${e.message}`);
+                    console.error('✗ Failed to load courses:', e);
+                    alert(`Could not load courses.json. ${e.message}`);
                 }
             }
 
-            // ---------- 3. Progress (localStorage) ----------
+            // ========== 3. PROGRESS TRACKING ==========
             const storageKey = `smartfile_${userId}`;
+
             function getProgress() {
-                const raw = localStorage.getItem(storageKey);
-                return raw ? JSON.parse(raw) : { completedUnits: {}, onboarded: false };
+                try {
+                    const raw = localStorage.getItem(storageKey);
+                    return raw ? JSON.parse(raw) : {
+                        completedUnits: {},
+                        completedAt: {},
+                        onboarded: false,
+                        createdAt: Date.now()
+                    };
+                } catch (e) {
+                    console.error('Progress parse error:', e);
+                    return { completedUnits: {}, completedAt: {}, onboarded: false, createdAt: Date.now() };
+                }
             }
+
             function saveProgress(prog) {
-                localStorage.setItem(storageKey, JSON.stringify(prog));
+                try {
+                    localStorage.setItem(storageKey, JSON.stringify(prog));
+                } catch (e) {
+                    console.error('Progress save error:', e);
+                }
             }
+
             let prog = getProgress();
 
+            // ========== 4. TIER & ACCESS CONTROL ==========
+            function canAccessCourse(course) {
+                const userIdx = tierOrder.indexOf(userTier);
+                const courseIdx = tierOrder.indexOf(course.tier);
+                return userIdx >= courseIdx;
+            }
+
+            function getUpgradeUrl(course) {
+                const tier = course.tier;
+                return CONFIG.upgradeUrl[tier] || CONFIG.upgradeUrl.tier1;
+            }
+
+            // ========== 5. DRIP & TIME-BASED LOGIC ==========
             function isUnitLocked(unit, course) {
+                // First unit always unlocked
                 if (unit.position === 1) return false;
+
+                // Find previous unit
                 const prevUnit = course.units.find(u => u.position === unit.position - 1);
                 if (!prevUnit) return false;
+
+                // Must complete previous unit
                 if (!prog.completedUnits[prevUnit.id]) return true;
-                const completedTime = prog.completedUnits[prevUnit.id];
-                if (prevUnit.timeDelayDays > 0) {
+
+                // Time-delay check
+                if (prevUnit.timeDelayDays && prevUnit.timeDelayDays > 0) {
+                    const completedTime = prog.completedAt[prevUnit.id];
+                    if (!completedTime) return true;
+
                     const unlockTime = completedTime + (prevUnit.timeDelayDays * 86400000);
-                    if (Date.now() < unlockTime) return true;
+                    const now = Date.now();
+                    return now < unlockTime;
                 }
+
                 return false;
             }
 
-            // ---------- 4. Render functions ----------
+            function getUnlockTime(unit, course) {
+                if (unit.position === 1) return 0;
+                const prevUnit = course.units.find(u => u.position === unit.position - 1);
+                if (!prevUnit || !prevUnit.timeDelayDays) return 0;
+                const completedTime = prog.completedAt[prevUnit.id];
+                if (!completedTime) return 0;
+                return completedTime + (prevUnit.timeDelayDays * 86400000);
+            }
+
+            function formatUnlockTime(unlockTime) {
+                const now = Date.now();
+                const diff = unlockTime - now;
+                if (diff <= 0) return 'Ready';
+                const hours = Math.ceil(diff / 3600000);
+                if (hours < 24) return `${hours}h remaining`;
+                const days = Math.ceil(diff / 86400000);
+                return `${days}d remaining`;
+            }
+
+            // ========== 6. RENDER: ONBOARDING ==========
             function renderOnboarding() {
                 document.getElementById('app').innerHTML = `
                     <div class="glass rounded-2xl p-8 max-w-lg mx-auto text-center">
-                        <h2 class="text-3xl font-display font-bold mb-4">Set Up Your SmartFile Library</h2>
-                        <p class="text-slate-400 mb-6">What brings you here?</p>
-                        <button class="goal-btn bg-white/5 hover:bg-primary/20 p-4 rounded-xl text-left w-full mb-2" data-goal="improve-eyesight">Improve Eyesight</button>
-                        <button class="goal-btn bg-white/5 hover:bg-primary/20 p-4 rounded-xl text-left w-full mb-2" data-goal="reduce-strain">Reduce Screen Strain</button>
-                        <button class="goal-btn bg-white/5 hover:bg-primary/20 p-4 rounded-xl text-left w-full mb-4" data-goal="general-wellness">General Wellness</button>
-                        <button id="skip-onboarding" class="text-slate-500 text-sm hover:text-white">Skip</button>
+                        <h2 class="text-3xl font-display font-bold mb-2">Welcome to SmartFile</h2>
+                        <p class="text-slate-400 mb-6">Set Up Your Learning Path</p>
+                        <button class="goal-btn bg-white/5 hover:bg-primary/20 p-4 rounded-xl text-left w-full mb-2 transition" data-goal="improve-eyesight">👁️ Improve Eyesight</button>
+                        <button class="goal-btn bg-white/5 hover:bg-primary/20 p-4 rounded-xl text-left w-full mb-2 transition" data-goal="reduce-strain">🛡️ Reduce Screen Strain</button>
+                        <button class="goal-btn bg-white/5 hover:bg-primary/20 p-4 rounded-xl text-left w-full mb-4 transition" data-goal="general-wellness">✨ General Wellness</button>
+                        <button id="skip-onboarding" class="text-slate-500 text-sm hover:text-white transition">Skip for now</button>
                         <div id="processing" class="hidden mt-6 animate-pulse">
                             <div class="bg-slate-900 p-4 rounded-lg text-left text-xs font-mono space-y-2">
                                 <div class="flex items-center gap-2"><div class="w-2 h-2 rounded-full bg-accent animate-pulse"></div> Personalizing...</div>
                                 <div class="w-full bg-slate-800 h-1 rounded-full"><div class="bg-primary h-1 rounded-full" style="width:100%"></div></div>
-                                <p class="text-accent text-[10px]">Library ready!</p>
+                                <p class="text-accent text-[10px]">Ready! 🎉</p>
                             </div>
                         </div>
                     </div>`;
+
                 document.querySelectorAll('.goal-btn').forEach(btn => {
                     btn.addEventListener('click', () => {
                         prog.onboarded = true;
@@ -158,226 +247,300 @@
                 });
             }
 
+            // ========== 7. RENDER: LIBRARY ==========
             async function renderLibrary() {
                 await loadCourses();
+                if (!coursesData) return;
+
                 let html = `
                     <header class="mb-10 flex flex-col md:flex-row items-center justify-between">
                         <div>
-                            <h1 class="text-3xl md:text-4xl font-display font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">SmartFile</h1>
-                            <p class="text-slate-400 text-sm">Welcome, ${userEmail || 'Member'}</p>
+                            <h1 class="text-4xl font-display font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">SmartFile</h1>
+                            <p class="text-slate-400 text-sm">Welcome, ${userEmail}</p>
                         </div>
                         <div class="flex gap-4 mt-4 md:mt-0">
-                            <span class="text-xs bg-primary/20 text-primary px-3 py-1 rounded-full font-mono">${userTier.toUpperCase()}</span>
+                            <span class="text-xs bg-primary/20 text-primary px-3 py-1 rounded-full font-mono font-bold">
+                                ${userTier === 'free' ? '📖 Free' : userTier === 'tier1' ? '⭐ Tier 1' : userTier === 'tier2' ? '✨ Premium' : '👑 Elite'}
+                            </span>
                         </div>
                     </header>
                     <h2 class="text-2xl font-display font-bold mb-6">Your Courses</h2>
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">`;
 
-                coursesData.forEach(course => {
-                    const lockedByTier = (course.tier === 'premium' && userTier !== 'premium');
-                    const completed = course.units.filter(u => prog.completedUnits[u.id]).length;
-                    const total = course.units.length;
-                    const percent = total ? Math.round((completed/total)*100) : 0;
-                    html += `
-                        <div class="glass rounded-2xl p-5 hover:border-primary/50 transition group ${lockedByTier ? 'opacity-70' : ''}">
-                            <div class="flex justify-between items-center mb-3">
-                                <span class="text-xs font-bold text-primary uppercase tracking-widest">${course.tier}</span>
-                                ${lockedByTier ? '<span class="text-[10px] text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-full">🔒 Premium</span>' : ''}
-                            </div>
-                            <h3 class="text-lg font-semibold mb-2">${course.title}</h3>
-                            <p class="text-xs text-slate-400 mb-3">${total} units</p>
-                            <div class="w-full bg-slate-800 rounded-full h-1.5 mb-3">
-                                <div class="bg-primary h-1.5 rounded-full" style="width:${percent}%"></div>
-                            </div>
-                            <div class="flex justify-between items-center text-[10px] text-slate-500">
-                                <span>${completed}/${total} complete</span>
-                                ${lockedByTier ? 
-                                    `<a href="${UPGRADE_URL}" target="_blank" class="text-amber-400 hover:underline font-bold">Upgrade →</a>` :
-                                    `<button onclick="openCourse('${course.id}')" class="text-primary hover:underline font-bold">Resume →</button>`
-                                }
-                            </div>
-                        </div>`;
-                });
+                if (coursesData.courses && coursesData.courses.length > 0) {
+                    coursesData.courses.forEach(course => {
+                        const canAccess = canAccessCourse(course);
+                        const completed = course.units.filter(u => prog.completedUnits[u.id]).length;
+                        const total = course.units.length;
+                        const percent = total ? Math.round((completed / total) * 100) : 0;
+                        const isComplete = completed === total && total > 0;
+
+                        let tierBadge = '';
+                        if (course.tier === 'free') tierBadge = '📖';
+                        else if (course.tier === 'tier1') tierBadge = '⭐';
+                        else if (course.tier === 'tier2') tierBadge = '✨';
+                        else tierBadge = '👑';
+
+                        html += `
+                            <div class="glass rounded-2xl p-5 hover:border-primary/50 transition ${!canAccess ? 'opacity-60' : ''} ${isComplete ? 'ring-2 ring-accent/50' : ''}">
+                                <div class="flex justify-between items-center mb-3">
+                                    <span class="text-xs font-bold text-primary uppercase tracking-widest">${tierBadge} ${course.tier}</span>
+                                    ${!canAccess ? '<span class="text-[10px] text-warning bg-warning/10 px-2 py-0.5 rounded-full lock-icon">🔒 Upgrade</span>' : ''}
+                                    ${isComplete ? '<span class="text-[10px] text-accent bg-accent/10 px-2 py-0.5 rounded-full">✓ Complete</span>' : ''}
+                                </div>
+                                <h3 class="text-lg font-semibold mb-2">${course.title}</h3>
+                                <p class="text-xs text-slate-400 mb-3">${course.description || ''}</p>
+                                <p class="text-xs text-slate-500 mb-3">${total} units</p>
+                                <div class="w-full bg-slate-800 rounded-full h-2 mb-3">
+                                    <div class="bg-gradient-to-r from-primary to-accent h-2 rounded-full transition-all" style="width:${percent}%"></div>
+                                </div>
+                                <div class="flex justify-between items-center text-[10px] text-slate-500">
+                                    <span>${completed}/${total} complete</span>
+                                    ${!canAccess ?
+                                        `<a href="${getUpgradeUrl(course)}" target="_blank" class="text-warning hover:underline font-bold">Upgrade →</a>` :
+                                        `<button onclick="openCourse('${course.id}')" class="text-primary hover:underline font-bold">Open →</button>`
+                                    }
+                                </div>
+                            </div>`;
+                    });
+                }
+
                 html += `</div>`;
                 if (window.location.search.includes('admin')) {
-                    html += `<div class="mt-8 text-center"><button onclick="showAdminPanel()" class="bg-white/5 hover:bg-white/10 text-slate-400 px-4 py-2 rounded-lg text-xs">Admin Panel</button></div>`;
+                    html += `<div class="mt-8 text-center"><button onclick="showAdminPanel()" class="bg-white/5 hover:bg-white/10 text-slate-400 px-4 py-2 rounded-lg text-xs transition">⚙️ Admin Panel</button></div>`;
                 }
                 document.getElementById('app').innerHTML = html;
 
                 window.openCourse = (courseId) => {
-                    const course = coursesData.find(c => c.id === courseId);
-                    if (!course) return;
+                    const course = coursesData.courses.find(c => c.id === courseId);
+                    if (!course) return alert('Course not found');
                     renderCourse(course);
                 };
             }
 
+            // ========== 8. RENDER: COURSE ==========
             function renderCourse(course) {
                 let html = `
-                    <button onclick="renderLibrary()" class="text-primary text-sm mb-4 flex items-center gap-1 hover:underline">← Back</button>
-                    <h2 class="text-2xl font-display font-bold mb-6">${course.title}</h2>
-                    <div class="space-y-4">`;
-                course.units.sort((a,b) => a.position - b.position).forEach(unit => {
-                    const completed = !!prog.completedUnits[unit.id];
-                    const locked = isUnitLocked(unit, course);
-                    html += `
-                        <div class="glass rounded-xl p-4 flex items-center justify-between ${locked ? 'opacity-60' : ''}">
-                            <div class="flex items-center gap-4">
-                                <div class="text-2xl">${completed ? '✅' : locked ? '🔒' : '📖'}</div>
-                                <div>
-                                    <h4 class="text-sm font-semibold ${locked ? 'text-slate-500' : 'text-white'}">${unit.title}</h4>
-                                    <p class="text-[10px] text-slate-500">
-                                        ${completed ? 'Completed' : locked ? 'Locked' : 'Ready'}
-                                        ${unit.timeDelayDays > 0 && !completed && !locked ? ` (wait ${unit.timeDelayDays}d)` : ''}
-                                    </p>
+                    <button onclick="renderLibrary()" class="text-primary text-sm mb-4 flex items-center gap-1 hover:underline transition">← Back to Library</button>
+                    <h2 class="text-3xl font-display font-bold mb-2">${course.title}</h2>
+                    <p class="text-slate-400 text-sm mb-6">${course.description || ''}</p>
+                    <div class="space-y-3">`;
+
+                if (course.units && course.units.length > 0) {
+                    course.units.sort((a, b) => a.position - b.position).forEach(unit => {
+                        const completed = !!prog.completedUnits[unit.id];
+                        const locked = isUnitLocked(unit, course);
+                        const unlockTime = getUnlockTime(unit, course);
+                        const unlockTimeStr = formatUnlockTime(unlockTime);
+
+                        html += `
+                            <div class="glass rounded-xl p-4 flex items-center justify-between ${locked ? 'opacity-60' : ''}">
+                                <div class="flex items-center gap-4 flex-1">
+                                    <div class="text-2xl">${completed ? '✅' : locked ? '🔒' : '📖'}</div>
+                                    <div class="flex-1">
+                                        <h4 class="text-sm font-semibold ${locked ? 'text-slate-500' : 'text-white'}">${unit.title}</h4>
+                                        <p class="text-[10px] text-slate-500 mt-1">
+                                            ${completed ? '✓ Completed' : locked ? `🕐 ${unlockTimeStr}` : 'Ready to start'}
+                                            ${unit.description ? ` • ${unit.description}` : ''}
+                                        </p>
+                                    </div>
                                 </div>
-                            </div>
-                            ${!locked && !completed ? `
-                                <div class="flex gap-2">
-                                    <button onclick="markDone('${unit.id}', '${course.id}')" class="bg-accent/20 hover:bg-accent/40 text-accent px-3 py-1 rounded-lg text-xs font-bold">Mark Complete</button>
-                                    <button onclick="viewUnit('${unit.id}', '${course.id}')" class="bg-white/5 hover:bg-white/10 text-slate-400 px-3 py-1 rounded-lg text-xs">View</button>
-                                </div>
-                            ` : completed ? `
-                                <button onclick="viewUnit('${unit.id}', '${course.id}')" class="text-primary hover:underline text-xs">Review</button>
-                            ` : ''}
-                        </div>`;
-                });
+                                ${!locked && !completed ? `
+                                    <div class="flex gap-2">
+                                        <button onclick="markDone('${unit.id}', '${course.id}')" class="bg-accent/20 hover:bg-accent/40 text-accent px-3 py-1 rounded-lg text-xs font-bold transition">Mark Complete</button>
+                                        <button onclick="viewUnit('${unit.id}', '${course.id}')" class="bg-white/5 hover:bg-white/10 text-slate-400 px-3 py-1 rounded-lg text-xs transition">View</button>
+                                    </div>
+                                ` : completed ? `
+                                    <button onclick="viewUnit('${unit.id}', '${course.id}')" class="text-primary hover:underline text-xs transition">Review</button>
+                                ` : ''}
+                            </div>`;
+                    });
+                }
+
                 html += `</div>`;
                 document.getElementById('app').innerHTML = html;
 
                 window.markDone = (unitId, courseId) => {
-                    prog.completedUnits[unitId] = Date.now();
+                    prog.completedUnits[unitId] = true;
+                    prog.completedAt[unitId] = Date.now();
                     saveProgress(prog);
-                    const course = coursesData.find(c => c.id === courseId);
-                    renderCourse(course);
+                    const c = coursesData.courses.find(x => x.id === courseId);
+                    renderCourse(c);
                 };
 
                 window.viewUnit = (unitId, courseId) => {
-                    const course = coursesData.find(c => c.id === courseId);
-                    const unit = course.units.find(u => u.id === unitId);
-                    if (!unit) return;
-                    if (isUnitLocked(unit, course) && !prog.completedUnits[unitId]) {
-                        alert('Unit locked');
+                    const c = coursesData.courses.find(x => x.id === courseId);
+                    const unit = c.units.find(u => u.id === unitId);
+                    if (!unit) return alert('Unit not found');
+                    if (isUnitLocked(unit, c) && !prog.completedUnits[unitId]) {
+                        alert('This unit is locked. Complete the previous unit first.');
                         return;
                     }
-                    renderUnit(unit, course);
+                    renderUnit(unit, c);
                 };
             }
 
+            // ========== 9. RENDER: UNIT ==========
             function renderUnit(unit, course) {
                 const completed = !!prog.completedUnits[unit.id];
-                let fileEmbed = '<p class="text-slate-400">No file attached.</p>';
-                if (unit.fileUrl) {
+                let fileEmbed = '<p class="text-slate-400">No file attached yet.</p>';
+
+                if (unit.fileUrl && unit.fileType && unit.fileType !== 'none') {
                     if (unit.fileType === 'video') {
-                        fileEmbed = `<video controls class="w-full rounded-lg"><source src="${unit.fileUrl}" type="video/mp4"></video>`;
+                        fileEmbed = `<video controls class="w-full rounded-lg border border-white/10"><source src="${unit.fileUrl}" type="video/mp4">Your browser does not support the video tag.</video>`;
                     } else if (unit.fileType === 'audio') {
-                        fileEmbed = `<audio controls class="w-full"><source src="${unit.fileUrl}" type="audio/mpeg"></audio>`;
+                        fileEmbed = `<audio controls class="w-full rounded-lg border border-white/10"><source src="${unit.fileUrl}" type="audio/mpeg">Your browser does not support audio.</audio>`;
                     } else if (unit.fileType === 'pdf') {
                         fileEmbed = `<iframe src="${unit.fileUrl}" class="w-full h-[70vh] rounded-lg border border-white/10"></iframe>`;
                     } else {
-                        fileEmbed = `<a href="${unit.fileUrl}" target="_blank" class="text-primary underline">Open file</a>`;
+                        fileEmbed = `<a href="${unit.fileUrl}" target="_blank" class="text-primary underline hover:text-accent transition">📥 Download File</a>`;
                     }
                 }
+
                 document.getElementById('app').innerHTML = `
-                    <button onclick="renderCourse('${course.id}')" class="text-primary text-sm mb-4 flex items-center gap-1 hover:underline">← Back</button>
+                    <button onclick="renderCourse('${course.id}')" class="text-primary text-sm mb-4 flex items-center gap-1 hover:underline transition">← Back to Course</button>
                     <div class="glass rounded-2xl p-6 max-w-4xl mx-auto">
-                        <h3 class="text-xl font-bold mb-4">${unit.title}</h3>
-                        ${fileEmbed}
-                        <div class="mt-6">
-                            ${completed ? 
-                                '<span class="text-accent text-sm">✅ Completed</span>' :
-                                `<button onclick="markDone('${unit.id}', '${course.id}')" class="bg-accent/20 hover:bg-accent/40 text-accent px-4 py-2 rounded-lg text-sm font-bold">Mark Complete</button>`
-                            }
+                        <h3 class="text-2xl font-bold mb-2">${unit.title}</h3>
+                        <p class="text-slate-400 text-sm mb-6">${unit.description || ''}</p>
+                        <div class="bg-slate-900/50 rounded-lg p-6 mb-6">
+                            ${fileEmbed}
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-slate-400">${completed ? '✅ You completed this unit' : '⏱️ Mark complete when done'}</span>
+                            ${!completed ? `
+                                <button onclick="markDone('${unit.id}', '${course.id}')" class="bg-accent/20 hover:bg-accent/40 text-accent px-6 py-2 rounded-lg text-sm font-bold transition">✓ Mark Complete</button>
+                            ` : ''}
                         </div>
                     </div>`;
+
+                window.renderCourse = (courseId) => {
+                    const c = coursesData.courses.find(x => x.id === courseId);
+                    renderCourse(c);
+                };
             }
 
-            // Admin panel
+            // ========== 10. ADMIN PANEL ==========
             window.showAdminPanel = function() {
-                const pw = prompt('Admin password:');
-                if (pw !== ADMIN_PASSWORD) return alert('Wrong password');
+                const pw = prompt('🔐 Admin password:');
+                if (pw !== CONFIG.adminPassword) return alert('❌ Wrong password');
+
                 let html = `
                 <div class="glass rounded-2xl p-6 max-w-4xl mx-auto">
-                    <h2 class="text-2xl font-display font-bold mb-6">Admin Panel</h2>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <h2 class="text-2xl font-display font-bold mb-6">⚙️ Admin Panel</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
                         <div>
-                            <h3 class="font-semibold mb-3">Add Course</h3>
-                            <input id="new-course-title" placeholder="Title" class="w-full bg-slate-800 p-3 rounded-lg mb-2 text-white">
-                            <select id="new-course-tier" class="w-full bg-slate-800 p-3 rounded-lg mb-2 text-white">
-                                <option value="free">Free</option>
-                                <option value="premium">Premium</option>
+                            <h3 class="font-semibold mb-3">➕ Add Course</h3>
+                            <input id="new-course-title" placeholder="Course title" class="w-full bg-slate-800 p-3 rounded-lg mb-2 text-white text-sm">
+                            <input id="new-course-desc" placeholder="Description" class="w-full bg-slate-800 p-3 rounded-lg mb-2 text-white text-sm">
+                            <select id="new-course-tier" class="w-full bg-slate-800 p-3 rounded-lg mb-3 text-white text-sm">
+                                <option value="free">📖 Free</option>
+                                <option value="tier1">⭐ Tier 1</option>
+                                <option value="tier2">✨ Tier 2 (Premium)</option>
+                                <option value="tier3">👑 Tier 3 (Elite)</option>
                             </select>
-                            <button onclick="addCourse()" class="bg-primary px-4 py-2 rounded-lg text-sm font-bold">Add Course</button>
+                            <button onclick="addCourse()" class="bg-primary hover:bg-primary/80 text-white px-4 py-2 rounded-lg text-sm font-bold w-full transition">Create Course</button>
                         </div>
                         <div>
-                            <h3 class="font-semibold mb-3">Add Unit</h3>
-                            <select id="unit-course-select" class="w-full bg-slate-800 p-3 rounded-lg mb-2 text-white"></select>
-                            <input id="unit-title" placeholder="Unit title" class="w-full bg-slate-800 p-3 rounded-lg mb-2 text-white">
-                            <input id="unit-delay" type="number" placeholder="Time delay (days)" value="0" class="w-full bg-slate-800 p-3 rounded-lg mb-2 text-white">
-                            <input id="unit-file-url" placeholder="File URL (from Whop Files)" class="w-full bg-slate-800 p-3 rounded-lg mb-2 text-white">
-                            <select id="unit-file-type" class="w-full bg-slate-800 p-3 rounded-lg mb-2 text-white">
-                                <option value="none">None</option>
-                                <option value="video">Video</option>
-                                <option value="audio">Audio</option>
-                                <option value="pdf">PDF</option>
+                            <h3 class="font-semibold mb-3">📝 Add Unit</h3>
+                            <select id="unit-course-select" class="w-full bg-slate-800 p-3 rounded-lg mb-2 text-white text-sm"></select>
+                            <input id="unit-title" placeholder="Unit title" class="w-full bg-slate-800 p-3 rounded-lg mb-2 text-white text-sm">
+                            <input id="unit-desc" placeholder="Unit description" class="w-full bg-slate-800 p-3 rounded-lg mb-2 text-white text-sm">
+                            <input id="unit-delay" type="number" placeholder="Days until available" value="0" class="w-full bg-slate-800 p-3 rounded-lg mb-2 text-white text-sm">
+                            <input id="unit-file-url" placeholder="File URL (Whop Files link)" class="w-full bg-slate-800 p-3 rounded-lg mb-2 text-white text-sm">
+                            <select id="unit-file-type" class="w-full bg-slate-800 p-3 rounded-lg mb-3 text-white text-sm">
+                                <option value="none">No file</option>
+                                <option value="video">🎥 Video</option>
+                                <option value="audio">🔊 Audio</option>
+                                <option value="pdf">📄 PDF</option>
+                                <option value="other">📥 Other</option>
                             </select>
-                            <button onclick="addUnit()" class="bg-accent px-4 py-2 rounded-lg text-sm font-bold">Add Unit</button>
+                            <button onclick="addUnit()" class="bg-accent hover:bg-accent/80 text-white px-4 py-2 rounded-lg text-sm font-bold w-full transition">Create Unit</button>
                         </div>
                     </div>
-                    <button onclick="renderLibrary()" class="mt-8 text-primary underline">Back to Library</button>
+                    <div class="bg-slate-900/50 p-4 rounded-lg mb-6">
+                        <p class="text-xs text-slate-400 mb-2">📋 Current Progress Storage:</p>
+                        <p class="text-xs font-mono text-slate-300 break-all">storageKey: smartfile_${userId}</p>
+                    </div>
+                    <button onclick="renderLibrary()" class="w-full text-primary underline hover:text-primary/80 transition text-sm">← Back to Library</button>
                 </div>`;
+
                 document.getElementById('app').innerHTML = html;
-                const sel = document.getElementById('unit-course-select');
-                coursesData.forEach(c => { const opt = document.createElement('option'); opt.value=c.id; opt.textContent=c.title; sel.appendChild(opt); });
+
+                const courseSelect = document.getElementById('unit-course-select');
+                if (coursesData && coursesData.courses) {
+                    coursesData.courses.forEach(c => {
+                        const opt = document.createElement('option');
+                        opt.value = c.id;
+                        opt.textContent = c.title;
+                        courseSelect.appendChild(opt);
+                    });
+                }
+
                 window.addCourse = () => {
                     const title = document.getElementById('new-course-title').value;
+                    const desc = document.getElementById('new-course-desc').value;
                     const tier = document.getElementById('new-course-tier').value;
-                    if (!title) return;
-                    coursesData.push({ id: Date.now().toString(), title, tier, units: [] });
-                    localStorage.setItem('smf_courses_backup', JSON.stringify(coursesData));
-                    alert('Course added. Copy JSON from console and update courses.json.');
-                    console.log('Updated courses JSON:', JSON.stringify(coursesData, null, 2));
+                    if (!title || !desc) return alert('Please fill all fields');
+                    if (!coursesData.courses) coursesData.courses = [];
+                    coursesData.courses.push({
+                        id: 'c' + Date.now(),
+                        title,
+                        tier,
+                        description: desc,
+                        units: []
+                    });
+                    localStorage.setItem('smf_backup_' + userId, JSON.stringify(coursesData));
+                    alert('✓ Course created!\n\nCopy this and update courses.json:\n\n' + JSON.stringify(coursesData, null, 2));
+                    console.log('Updated:', coursesData);
                     renderLibrary();
                 };
+
                 window.addUnit = () => {
                     const courseId = document.getElementById('unit-course-select').value;
-                    const course = coursesData.find(c => c.id === courseId);
-                    if (!course) return;
+                    const course = coursesData.courses.find(c => c.id === courseId);
+                    if (!course) return alert('Select a course');
                     const title = document.getElementById('unit-title').value;
+                    const desc = document.getElementById('unit-desc').value;
                     const delay = parseInt(document.getElementById('unit-delay').value) || 0;
                     const fileUrl = document.getElementById('unit-file-url').value;
                     const fileType = document.getElementById('unit-file-type').value;
+                    if (!title) return alert('Unit title required');
+                    if (!course.units) course.units = [];
                     course.units.push({
-                        id: Date.now().toString(),
+                        id: 'u' + Date.now(),
                         title,
+                        description: desc,
                         position: course.units.length + 1,
                         timeDelayDays: delay,
                         fileUrl: fileUrl || null,
-                        fileType: fileType !== 'none' ? fileType : null
+                        fileType: fileType !== 'none' ? fileType : 'none'
                     });
-                    localStorage.setItem('smf_courses_backup', JSON.stringify(coursesData));
-                    alert('Unit added. Copy JSON from console and update courses.json.');
-                    console.log('Updated courses JSON:', JSON.stringify(coursesData, null, 2));
+                    localStorage.setItem('smf_backup_' + userId, JSON.stringify(coursesData));
+                    alert('✓ Unit created!\n\nCopy this and update courses.json:\n\n' + JSON.stringify(coursesData, null, 2));
+                    console.log('Updated:', coursesData);
                     renderLibrary();
                 };
             };
 
-            // ========== INIT ==========
+            // ========== 11. INITIALIZATION ==========
             if (!prog.onboarded) {
                 renderOnboarding();
             } else {
                 renderLibrary();
             }
 
-            // particles
+            // Particle effect
             const container = document.getElementById('particles');
             for (let i = 0; i < 20; i++) {
                 const p = document.createElement('div');
                 p.className = 'absolute bg-primary/20 rounded-full blur-xl animate-pulse-slow';
                 const s = Math.random() * 200 + 100;
-                p.style.width = s + 'px'; p.style.height = s + 'px';
-                p.style.top = Math.random()*100 + '%'; p.style.left = Math.random()*100 + '%';
-                p.style.animationDelay = Math.random()*5 + 's';
-                p.style.animationDuration = (Math.random()*10 + 5) + 's';
+                p.style.width = s + 'px';
+                p.style.height = s + 'px';
+                p.style.top = Math.random() * 100 + '%';
+                p.style.left = Math.random() * 100 + '%';
+                p.style.animationDelay = Math.random() * 5 + 's';
+                p.style.animationDuration = (Math.random() * 10 + 5) + 's';
                 container.appendChild(p);
             }
         })();

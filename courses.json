@@ -5,19 +5,87 @@
       "id": "course1",
       "title": "Golden Vision Fundamentals",
       "tier": "free",
+      "description": "Master the basics of eye health and vision optimization",
       "units": [
-        { "id": "u1", "title": "Welcome & Eye Anatomy", "position": 1, "timeDelayDays": 0, "fileUrl": null, "fileType": "none" },
-        { "id": "u2", "title": "Light & Retina Metabolism", "position": 2, "timeDelayDays": 0, "fileUrl": null, "fileType": "none" },
-        { "id": "u3", "title": "Daily Eye Care Habits", "position": 3, "timeDelayDays": 1, "fileUrl": null, "fileType": "none" }
+        {
+          "id": "u1",
+          "title": "Welcome & Eye Anatomy",
+          "position": 1,
+          "timeDelayDays": 0,
+          "fileUrl": null,
+          "fileType": "none",
+          "description": "Introduction to eye structure"
+        },
+        {
+          "id": "u2",
+          "title": "Light & Retina Metabolism",
+          "position": 2,
+          "timeDelayDays": 0,
+          "fileUrl": null,
+          "fileType": "none",
+          "description": "How light affects vision"
+        },
+        {
+          "id": "u3",
+          "title": "Daily Eye Care Habits",
+          "position": 3,
+          "timeDelayDays": 1,
+          "fileUrl": null,
+          "fileType": "none",
+          "description": "Essential daily routines"
+        }
       ]
     },
     {
       "id": "course2",
       "title": "Advanced Protocols",
       "tier": "tier1",
+      "description": "Deep dive into advanced vision enhancement techniques",
       "units": [
-        { "id": "u4", "title": "Blue Light Deep Dive", "position": 1, "timeDelayDays": 0, "fileUrl": null, "fileType": "none" },
-        { "id": "u5", "title": "Supplements & Nutrition", "position": 2, "timeDelayDays": 2, "fileUrl": null, "fileType": "none" }
+        {
+          "id": "u4",
+          "title": "Blue Light Deep Dive",
+          "position": 1,
+          "timeDelayDays": 0,
+          "fileUrl": null,
+          "fileType": "none",
+          "description": "Understanding blue light effects"
+        },
+        {
+          "id": "u5",
+          "title": "Supplements & Nutrition",
+          "position": 2,
+          "timeDelayDays": 2,
+          "fileUrl": null,
+          "fileType": "none",
+          "description": "Nutritional support for eye health"
+        }
+      ]
+    },
+    {
+      "id": "course3",
+      "title": "Premium Vision Mastery",
+      "tier": "tier2",
+      "description": "Exclusive premium strategies and personal optimization",
+      "units": [
+        {
+          "id": "u6",
+          "title": "Personalized Vision Plan",
+          "position": 1,
+          "timeDelayDays": 0,
+          "fileUrl": null,
+          "fileType": "none",
+          "description": "Create your custom plan"
+        },
+        {
+          "id": "u7",
+          "title": "Advanced Testing Protocols",
+          "position": 2,
+          "timeDelayDays": 3,
+          "fileUrl": null,
+          "fileType": "none",
+          "description": "Professional assessment methods"
+        }
       ]
     }
   ]
