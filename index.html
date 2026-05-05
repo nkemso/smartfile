@@ -31,6 +31,9 @@
         }
     </script>
     <style>
+        html, body {
+            height: 100%;
+        }
         body {
             background-color: #020617;
             background-image: radial-gradient(at 0% 0%, rgba(14,165,233,0.15) 0px, transparent 50%),
@@ -52,9 +55,9 @@
         }
     </style>
 </head>
-<body class="min-h-screen font-sans antialiased p-4 md:p-8">
+<body class="min-h-screen font-sans antialiased p-4 md:p-8 flex flex-col">
 
-    <div id="app" class="max-w-7xl mx-auto"></div>
+    <div id="app" class="max-w-7xl mx-auto w-full flex-1 flex flex-col"></div>
     <div class="fixed inset-0 pointer-events-none -z-10 overflow-hidden" id="particles"></div>
 
     <script>
@@ -216,18 +219,31 @@
             // ========== 6. RENDER: ONBOARDING ==========
             function renderOnboarding() {
                 document.getElementById('app').innerHTML = `
-                    <div class="glass rounded-2xl p-8 max-w-lg mx-auto text-center">
-                        <h2 class="text-3xl font-display font-bold mb-2">Welcome to SmartFile</h2>
-                        <p class="text-slate-400 mb-6">Set Up Your Learning Path</p>
-                        <button class="goal-btn bg-white/5 hover:bg-primary/20 p-4 rounded-xl text-left w-full mb-2 transition" data-goal="improve-eyesight">👁️ Improve Eyesight</button>
-                        <button class="goal-btn bg-white/5 hover:bg-primary/20 p-4 rounded-xl text-left w-full mb-2 transition" data-goal="reduce-strain">🛡️ Reduce Screen Strain</button>
-                        <button class="goal-btn bg-white/5 hover:bg-primary/20 p-4 rounded-xl text-left w-full mb-4 transition" data-goal="general-wellness">✨ General Wellness</button>
-                        <button id="skip-onboarding" class="text-slate-500 text-sm hover:text-white transition">Skip for now</button>
-                        <div id="processing" class="hidden mt-6 animate-pulse">
-                            <div class="bg-slate-900 p-4 rounded-lg text-left text-xs font-mono space-y-2">
-                                <div class="flex items-center gap-2"><div class="w-2 h-2 rounded-full bg-accent animate-pulse"></div> Personalizing...</div>
-                                <div class="w-full bg-slate-800 h-1 rounded-full"><div class="bg-primary h-1 rounded-full" style="width:100%"></div></div>
-                                <p class="text-accent text-[10px]">Ready! 🎉</p>
+                    <div class="w-full h-full flex flex-col items-center justify-center">
+                        <div class="glass rounded-2xl p-8 md:p-12 w-full max-w-2xl text-center flex flex-col">
+                            <h2 class="text-4xl md:text-5xl font-display font-bold mb-2">Welcome to SmartFile</h2>
+                            <p class="text-slate-400 mb-8 md:mb-12 text-lg">Set Up Your Learning Path</p>
+                            <div class="space-y-4 flex-1 flex flex-col justify-center">
+                                <button class="goal-btn bg-white/5 hover:bg-primary/20 p-6 rounded-xl text-center w-full transition transform hover:scale-105 active:scale-95" data-goal="improve-eyesight">
+                                    <div class="text-3xl mb-2">👁️</div>
+                                    <div class="text-lg font-semibold">Improve Eyesight</div>
+                                </button>
+                                <button class="goal-btn bg-white/5 hover:bg-primary/20 p-6 rounded-xl text-center w-full transition transform hover:scale-105 active:scale-95" data-goal="reduce-strain">
+                                    <div class="text-3xl mb-2">🛡️</div>
+                                    <div class="text-lg font-semibold">Reduce Screen Strain</div>
+                                </button>
+                                <button class="goal-btn bg-white/5 hover:bg-primary/20 p-6 rounded-xl text-center w-full transition transform hover:scale-105 active:scale-95" data-goal="general-wellness">
+                                    <div class="text-3xl mb-2">✨</div>
+                                    <div class="text-lg font-semibold">General Wellness</div>
+                                </button>
+                            </div>
+                            <button id="skip-onboarding" class="text-slate-500 text-sm hover:text-white transition mt-8">Skip for now</button>
+                            <div id="processing" class="hidden mt-6 animate-pulse">
+                                <div class="bg-slate-900 p-4 rounded-lg text-left text-xs font-mono space-y-2">
+                                    <div class="flex items-center gap-2"><div class="w-2 h-2 rounded-full bg-accent animate-pulse"></div> Personalizing...</div>
+                                    <div class="w-full bg-slate-800 h-1 rounded-full"><div class="bg-primary h-1 rounded-full" style="width:100%"></div></div>
+                                    <p class="text-accent text-[10px]">Ready! 🎉</p>
+                                </div>
                             </div>
                         </div>
                     </div>`;
@@ -307,7 +323,7 @@
 
                 html += `</div>`;
                 if (window.location.search.includes('admin')) {
-                    html += `<div class="mt-8 text-center"><button onclick="showAdminPanel()" class="bg-white/5 hover:bg-white/10 text-slate-400 px-4 py-2 rounded-lg text-xs transition">⚙️ Admin Panel</button></div>`;
+                    html += `<div class="mt-8 text-center"><button onclick="showAdminPanel()" class="bg-white/5 hover:bg-white/10 text-slate-400 px-4 py-2 rounded-lg text-xs transition">⚙️ Admin</button></div>`;
                 }
                 document.getElementById('app').innerHTML = html;
 
@@ -347,7 +363,7 @@
                                 </div>
                                 ${!locked && !completed ? `
                                     <div class="flex gap-2">
-                                        <button onclick="markDone('${unit.id}', '${course.id}')" class="bg-accent/20 hover:bg-accent/40 text-accent px-3 py-1 rounded-lg text-xs font-bold transition">Mark Complete</button>
+                                        <button onclick="markDone('${unit.id}', '${course.id}')" class="bg-accent/20 hover:bg-accent/40 text-accent px-3 py-1 rounded-lg text-xs font-bold transition">✓ Done</button>
                                         <button onclick="viewUnit('${unit.id}', '${course.id}')" class="bg-white/5 hover:bg-white/10 text-slate-400 px-3 py-1 rounded-lg text-xs transition">View</button>
                                     </div>
                                 ` : completed ? `
